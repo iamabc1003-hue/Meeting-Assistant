@@ -314,6 +314,11 @@
     <input type="text" class="input-field" id="defaultRecipients"
            placeholder="user@company.com"
            onchange="saveSettings()">
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+      <button class="btn btn-outline" style="width:100%;font-size:13px;padding:10px;" onclick="updateDB()">
+        🔄 Confluence → 사전지식DB 업데이트
+      </button>
+    </div>
   </div>
 
   <!-- 회의 정보 -->
@@ -693,6 +698,43 @@ async function copyToClipboard() {
     document.execCommand('copy');
     document.body.removeChild(ta);
     showToast('📋 클립보드에 복사됨');
+  }
+}
+
+// ── Confluence → 사전지식DB 업데이트 ──
+async function updateDB() {
+  var gasUrl = document.getElementById('gasUrl').value.trim();
+  if (!gasUrl) {
+    showToast('⚙️ GAS 웹앱 URL을 먼저 설정해주세요');
+    return;
+  }
+
+  if (state.isProcessing) return;
+  state.isProcessing = true;
+
+  try {
+    showStatus('Confluence 크롤 + DB 업데이트 중... (1~2분 소요)');
+
+    var result = await callGAS(gasUrl, { action: 'update_db' });
+
+    if (!result.success) throw new Error(result.error || '업데이트 실패');
+
+    var msg = 'DB 업데이트 완료';
+    if (result.pagesScanned !== undefined) {
+      msg += ' (페이지 ' + result.pagesScanned + '개 스캔, ' + result.added + '개 항목 추가)';
+    } else if (result.message) {
+      msg = result.message;
+    }
+
+    showStatus('✅ ' + msg, 'success');
+    showToast('🔄 ' + msg);
+    setTimeout(hideStatus, 5000);
+
+  } catch (err) {
+    showStatus('DB 업데이트 오류: ' + err.message, 'error');
+    setTimeout(hideStatus, 15000);
+  } finally {
+    state.isProcessing = false;
   }
 }
 
