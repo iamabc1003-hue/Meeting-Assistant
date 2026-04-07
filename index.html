@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1a2e">
+<title>회의록 AI 비서</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0f0f1a;
+    --surface: #1a1a2e;
+    --surface-2: #242440;
+    --accent: #6c63ff;
+    --accent-glow: rgba(108, 99, 255, 0.3);
+    --text: #e8e8f0;
+    --text-dim: #8888a0;
+    --success: #4ecdc4;
+    --danger: #ff6b6b;
+    --border: #2a2a48;
+    --radius: 12px;
+  }
+
+  body {
+    font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── 헤더 ── */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(26, 26, 46, 0.95);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  .header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .header .subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* ── 메인 ── */
+  .main {
+    padding: 20px;
+    padding-bottom: 40px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  /* ── 섹션 카드 ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  /* ── 입력 공통 ── */
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .input-field {
+    flex: 1;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    color: var(--text);
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .input-field:focus {
+    border-color: var(--accent);
+  }
+  .input-field::placeholder {
+    color: var(--text-dim);
+  }
+
+  /* ── 텍스트 입력 ── */
+  .textarea-wrap { position: relative; }
+  textarea.input-field {
+    min-height: 200px;
+    line-height: 1.7;
+    padding: 14px;
+    resize: vertical;
+    word-break: keep-all;
+  }
+  textarea.input-field:focus {
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .char-count {
+    position: absolute;
+    bottom: 10px;
+    right: 14px;
+    font-size: 11px;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+
+  /* ── 버튼 ── */
+  .btn-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    letter-spacing: -0.3px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active:not(:disabled) { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:disabled,
+  .btn-success:disabled {
+    background: var(--surface-2);
+    color: var(--text-dim);
+    cursor: not-allowed;
+  }
+  .btn-success { background: var(--success); color: #1a1a2e; }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  /* ── 결과 영역 ── */
+  .result-area { display: none; }
+  .result-area.visible { display: block; }
+  .result-content {
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 20px;
+    font-size: 14px;
+    line-height: 1.8;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    max-height: 60vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .result-content h1, .result-content h2, .result-content h3 {
+    color: var(--accent);
+    margin: 16px 0 8px 0;
+  }
+  .result-content h2 { font-size: 16px; }
+  .result-content h3 { font-size: 14px; }
+  .result-content ul, .result-content ol { padding-left: 20px; margin: 8px 0; }
+  .result-content li { margin: 4px 0; }
+  .result-content strong { color: #fff; }
+  .result-content hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+  }
+
+  /* ── 상태 표시 ── */
+  .status-bar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+  .status-bar.visible { display: flex; }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status-bar.success { border-color: var(--success); color: var(--success); }
+  .status-bar.error { border-color: var(--danger); color: var(--danger); }
+
+  /* ── 설정 패널 ── */
+  .settings-toggle {
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 12px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .settings-panel { display: none; margin-bottom: 12px; }
+  .settings-panel.open { display: block; }
+  .settings-panel label {
+    font-size: 12px;
+    color: var(--text-dim);
+    display: block;
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  .settings-panel label:first-child { margin-top: 0; }
+
+  /* ── 토스트 ── */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 14px;
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    max-width: 90vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  /* ── 탭 ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .tab {
+    flex: 1;
+    padding: 8px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-dim);
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tab.active { background: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📝 회의록 AI 비서</h1>
+  <div class="subtitle">STT 텍스트 → 회의록 자동 생성 → 메일 발송</div>
+</div>
+
+<div class="main">
+
+  <!-- 설정 -->
+  <div class="settings-toggle" onclick="toggleSettings()">
+    ⚙️ GAS 서버 설정 <span id="settingsArrow">▸</span>
+  </div>
+  <div class="settings-panel" id="settingsPanel">
+    <label>GAS 웹앱 URL</label>
+    <input type="url" class="input-field" id="gasUrl"
+           placeholder="https://script.google.com/macros/s/.../exec"
+           onchange="saveSettings()">
+    <label>기본 수신자 이메일 (쉼표 구분)</label>
+    <input type="text" class="input-field" id="defaultRecipients"
+           placeholder="user@company.com"
+           onchange="saveSettings()">
+  </div>
+
+  <!-- 회의 정보 -->
+  <div class="card">
+    <div class="card-title">회의 정보</div>
+    <div class="info-row">
+      <input type="text" class="input-field" id="meetingTitle" placeholder="회의명">
+      <input type="date" class="input-field" id="meetingDate">
+    </div>
+    <div class="info-row">
+      <input type="text" class="input-field" id="meetingAttendees" placeholder="참석자 (예: 차준호, 서삼열)">
+    </div>
+  </div>
+
+  <!-- STT 텍스트 -->
+  <div class="card">
+    <div class="card-title">STT 텍스트</div>
+    <div class="textarea-wrap">
+      <textarea class="input-field" id="sttText"
+        placeholder="삼성 녹음 앱의 STT 결과를 여기에 붙여넣기...
+
+음성인식 텍스트를 복사한 뒤 이 영역을 길게 눌러 붙여넣기 하세요."
+        oninput="updateCharCount()"></textarea>
+      <div class="char-count" id="charCount">0자</div>
+    </div>
+  </div>
+
+  <!-- 수신자 -->
+  <div class="card">
+    <div class="card-title">메일 수신자</div>
+    <input type="text" class="input-field" id="recipients"
+           placeholder="수신자 이메일 (쉼표 구분, 비우면 기본값 사용)">
+  </div>
+
+  <!-- 액션 버튼 -->
+  <div class="btn-group">
+    <button class="btn btn-primary" id="btnGenerate" onclick="generateMinutes()">
+      ✨ 회의록 생성
+    </button>
+  </div>
+
+  <!-- 상태 바 -->
+  <div class="status-bar" id="statusBar" onclick="if(!state.isProcessing)hideStatus()">
+    <div class="spinner" id="statusSpinner"></div>
+    <span id="statusText">처리 중...</span>
+  </div>
+
+  <!-- 결과 -->
+  <div class="result-area" id="resultArea">
+    <div class="card">
+      <div class="card-title">생성된 회의록</div>
+      <div class="tabs" id="tabsContainer">
+        <div class="tab active" data-tab="final" onclick="switchTab(this, 'final')">최종본</div>
+        <div class="tab" data-tab="draft" onclick="switchTab(this, 'draft')">초안</div>
+      </div>
+      <div class="result-content" id="resultContent"></div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-success" id="btnSend" onclick="sendEmail()">
+        📧 메일 발송
+      </button>
+      <button class="btn btn-outline" onclick="copyToClipboard()">
+        📋 복사
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── 상태 ──
+var state = {
+  draft: '',
+  final: '',
+  html: '',
+  currentTab: 'final',
+  isProcessing: false
+};
+
+// ── 초기화 ──
+document.addEventListener('DOMContentLoaded', function() {
+  loadSettings();
+  document.getElementById('meetingDate').valueAsDate = new Date();
+});
+
+// ── 설정 관리 ──
+function toggleSettings() {
+  var panel = document.getElementById('settingsPanel');
+  var arrow = document.getElementById('settingsArrow');
+  panel.classList.toggle('open');
+  arrow.textContent = panel.classList.contains('open') ? '▾' : '▸';
+}
+
+function saveSettings() {
+  try {
+    var settings = {
+      gasUrl: document.getElementById('gasUrl').value,
+      defaultRecipients: document.getElementById('defaultRecipients').value
+    };
+    localStorage.setItem('meetingAssistantSettings', JSON.stringify(settings));
+  } catch (e) {
+    // 시크릿 모드 등에서 localStorage 사용 불가 시 무시
+  }
+}
+
+function loadSettings() {
+  try {
+    var saved = localStorage.getItem('meetingAssistantSettings');
+    if (saved) {
+      var settings = JSON.parse(saved);
+      document.getElementById('gasUrl').value = settings.gasUrl || '';
+      document.getElementById('defaultRecipients').value = settings.defaultRecipients || '';
+    }
+  } catch (e) {}
+}
+
+// ── 글자수 ──
+function updateCharCount() {
+  var len = document.getElementById('sttText').value.length;
+  document.getElementById('charCount').textContent = len.toLocaleString() + '자';
+}
+
+// ── 상태 바 ──
+function showStatus(text, type) {
+  type = type || 'loading';
+  var bar = document.getElementById('statusBar');
+  var spinner = document.getElementById('statusSpinner');
+  var statusText = document.getElementById('statusText');
+
+  bar.className = 'status-bar visible' + (type !== 'loading' ? ' ' + type : '');
+  spinner.style.display = type === 'loading' ? 'block' : 'none';
+  statusText.textContent = text;
+}
+
+function hideStatus() {
+  document.getElementById('statusBar').className = 'status-bar';
+}
+
+// ── 토스트 ──
+function showToast(msg) {
+  var toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(function() { toast.classList.remove('show'); }, 2500);
+}
+
+// ── GAS 웹앱 호출 (리다이렉트 대응 + 타임아웃) ──
+async function callGAS(gasUrl, payload) {
+  // 5분 타임아웃 (GAS 최대 실행시간 6분 고려)
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function() { controller.abort(); }, 300000);
+
+  try {
+    var response = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      redirect: 'follow',
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error('서버 응답 오류: ' + response.status);
+    }
+
+    var text = await response.text();
+
+    if (text.trim().startsWith('<')) {
+      throw new Error('서버가 HTML을 반환함. GAS 배포 설정을 확인해주세요.');
+    }
+
+    return JSON.parse(text);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error('서버 응답 시간 초과 (5분). 텍스트를 줄여서 다시 시도해주세요.');
+    }
+    throw err;
+  }
+}
+
+// ── 회의록 생성 ──
+async function generateMinutes() {
+  var gasUrl = document.getElementById('gasUrl').value.trim();
+  if (!gasUrl) {
+    showToast('⚙️ GAS 웹앱 URL을 먼저 설정해주세요');
+    toggleSettings();
+    return;
+  }
+
+  var text = document.getElementById('sttText').value.trim();
+  if (!text) {
+    showToast('📝 STT 텍스트를 입력해주세요');
+    return;
+  }
+
+  if (text.length > 30000) {
+    showToast('⚠️ 텍스트가 30,000자를 초과합니다');
+    return;
+  }
+
+  if (state.isProcessing) return;
+  state.isProcessing = true;
+
+  var btn = document.getElementById('btnGenerate');
+  btn.disabled = true;
+
+  try {
+    // GAS에서 1차 초안 + 2차 퇴고를 한 번에 처리하므로 단일 상태 메시지
+    showStatus('회의록 생성 중... (초안 작성 → 사전지식DB 퇴고, 1~2분 소요)');
+
+    var meetingInfo = {
+      title: document.getElementById('meetingTitle').value.trim(),
+      date: document.getElementById('meetingDate').value,
+      attendees: document.getElementById('meetingAttendees').value.trim()
+    };
+
+    var result = await callGAS(gasUrl, {
+      action: 'generate',
+      text: text,
+      meetingInfo: meetingInfo
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || '알 수 없는 오류');
+    }
+
+    state.draft = result.draft;
+    state.final = result.final;
+    state.html = result.html;
+
+    showResult('final');
+    document.getElementById('resultArea').classList.add('visible');
+
+    // 결과 영역으로 스크롤
+    document.getElementById('resultArea').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    showStatus('✅ 회의록 생성 완료!', 'success');
+    setTimeout(hideStatus, 3000);
+
+  } catch (err) {
+    showStatus('오류: ' + err.message, 'error');
+    // 에러 상태 30초 후 자동 숨김
+    setTimeout(hideStatus, 30000);
+  } finally {
+    btn.disabled = false;
+    state.isProcessing = false;
+  }
+}
+
+// ── 결과 표시 ──
+function showResult(tab) {
+  var content = tab === 'draft' ? state.draft : state.final;
+  document.getElementById('resultContent').innerHTML = markdownToHTML(content);
+}
+
+function switchTab(el, tab) {
+  state.currentTab = tab;
+  var tabs = document.getElementById('tabsContainer').children;
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.remove('active');
+  }
+  el.classList.add('active');
+  showResult(tab);
+}
+
+// ── 마크다운 → HTML (PWA 내부 표시용) ──
+function markdownToHTML(md) {
+  if (!md) return '<p style="color:var(--text-dim);">내용 없음</p>';
+
+  var html = md;
+
+  // XSS 방어: &, <, > 이스케이프 (마크다운 기호 #, *, - 는 영향 없음)
+  html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // 헤더
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+  // 볼드/이탤릭
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // 리스트
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/((?:<li>.*?<\/li>\s*)+)/g, '<ul>$1</ul>');
+
+  // 구분선
+  html = html.replace(/^---$/gm, '<hr>');
+
+  // 줄바꿈
+  html = html.replace(/\n\n+/g, '<br><br>');
+  html = html.replace(/\n/g, '<br>');
+
+  return html;
+}
+
+// ── 메일 발송 ──
+async function sendEmail() {
+  var gasUrl = document.getElementById('gasUrl').value.trim();
+  if (!gasUrl) {
+    showToast('⚙️ GAS 웹앱 URL을 먼저 설정해주세요');
+    return;
+  }
+  if (!state.html) {
+    showToast('먼저 회의록을 생성해주세요');
+    return;
+  }
+
+  var recipients = document.getElementById('recipients').value.trim()
+    || document.getElementById('defaultRecipients').value.trim();
+
+  if (!recipients) {
+    showToast('📧 수신자 이메일을 입력해주세요');
+    return;
+  }
+
+  var btn = document.getElementById('btnSend');
+  btn.disabled = true;
+
+  try {
+    showStatus('메일 발송 중...');
+
+    var title = document.getElementById('meetingTitle').value.trim() || '회의록';
+    var date = document.getElementById('meetingDate').value;
+    var subject = '[회의록] ' + title + ' (' + date + ')';
+
+    var result = await callGAS(gasUrl, {
+      action: 'send_email',
+      html: state.html,
+      subject: subject,
+      recipients: recipients
+    });
+
+    if (!result.success) throw new Error(result.error || '발송 실패');
+
+    showStatus('✅ 메일 발송 완료!', 'success');
+    showToast('📧 ' + recipients + ' 발송됨');
+    setTimeout(hideStatus, 3000);
+
+  } catch (err) {
+    showStatus('발송 오류: ' + err.message, 'error');
+    setTimeout(hideStatus, 15000);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── 클립보드 복사 ──
+async function copyToClipboard() {
+  var text = state.currentTab === 'draft' ? state.draft : state.final;
+  if (!text) return;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('📋 클립보드에 복사됨');
+  } catch (e) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('📋 클립보드에 복사됨');
+  }
+}
+
+// ── 서비스 워커 ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(function() {});
+}
+</script>
+
+</body>
+</html>
