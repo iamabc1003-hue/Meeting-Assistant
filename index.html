@@ -181,6 +181,16 @@
     max-height: 60vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    outline: none;
+    border: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+  .result-content:focus {
+    border-color: var(--accent);
+  }
+  .result-content.edited {
+    border-color: var(--accent);
+    border-style: dashed;
   }
   .result-content h1, .result-content h2, .result-content h3 {
     color: var(--accent);
@@ -369,12 +379,15 @@
   <!-- 결과 -->
   <div class="result-area" id="resultArea">
     <div class="card">
-      <div class="card-title">생성된 회의록</div>
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>생성된 회의록</span>
+        <span id="editHint" style="font-size:11px;color:var(--accent);font-weight:400;">탭하여 직접 편집 가능</span>
+      </div>
       <div class="tabs" id="tabsContainer">
         <div class="tab active" data-tab="final" onclick="switchTab(this, 'final')">최종본</div>
         <div class="tab" data-tab="draft" onclick="switchTab(this, 'draft')">초안</div>
       </div>
-      <div class="result-content" id="resultContent"></div>
+      <div class="result-content" id="resultContent" contenteditable="true" oninput="onResultEdit()"></div>
     </div>
 
     <div class="btn-group">
@@ -398,7 +411,8 @@ var state = {
   final: '',
   html: '',
   currentTab: 'final',
-  isProcessing: false
+  isProcessing: false,
+  edited: false
 };
 
 // ── 초기화 ──
@@ -555,11 +569,16 @@ async function generateMinutes() {
     state.draft = result.draft;
     state.final = result.final;
     state.html = result.html;
+    state.edited = false;
 
     // 서버에서 자동 생성된 제목 반영
     if (result.title && !document.getElementById('meetingTitle').value.trim()) {
       document.getElementById('meetingTitle').value = result.title;
     }
+
+    // 편집 상태 초기화
+    document.getElementById('resultContent').classList.remove('edited');
+    document.getElementById('editHint').textContent = '탭하여 직접 편집 가능';
 
     showResult('final');
     document.getElementById('resultArea').classList.add('visible');
@@ -629,6 +648,53 @@ function markdownToHTML(md) {
   return html;
 }
 
+// ── 결과 편집 감지 ──
+function onResultEdit() {
+  state.edited = true;
+  var el = document.getElementById('resultContent');
+  el.classList.add('edited');
+  document.getElementById('editHint').textContent = '수정됨 — 이 내용으로 발송됩니다';
+}
+
+// ── 편집된 HTML로 메일용 본문 생성 ──
+function getEmailHTML(meetingInfo) {
+  // 편집된 경우 화면의 HTML을 직접 사용
+  if (state.edited && state.currentTab === 'final') {
+    var editedContent = document.getElementById('resultContent').innerHTML;
+    return buildEmailWrapper(editedContent, meetingInfo);
+  }
+  // 편집 안 된 경우 서버에서 받은 원본 HTML 사용
+  return state.html;
+}
+
+function buildEmailWrapper(contentHtml, meetingInfo) {
+  var title = meetingInfo.title || document.getElementById('meetingTitle').value.trim() || '회의록';
+  var date = meetingInfo.date || document.getElementById('meetingDate').value || '';
+  var attendees = document.getElementById('meetingAttendees').value.trim();
+  var attendeeLine = attendees
+    ? '<div style="margin-top:4px;font-size:12px;color:#a0a0b8;">참석: ' + attendees + '</div>'
+    : '';
+
+  return '<!DOCTYPE html>' +
+    '<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>' +
+    '<body style="margin:0;padding:0;background-color:#f5f5f5;' +
+      "font-family:'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕','Noto Sans KR',sans-serif;" +
+      '-webkit-text-size-adjust:100%;">' +
+    '<div style="max-width:600px;margin:20px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">' +
+      '<div style="background:#1a1a2e;color:#ffffff;padding:16px 20px;">' +
+        '<div style="font-size:17px;font-weight:600;letter-spacing:-0.3px;">' + title + '</div>' +
+        '<div style="margin-top:4px;font-size:12px;color:#a0a0b8;">' + date + '</div>' +
+        attendeeLine +
+      '</div>' +
+      '<div style="padding:20px 24px;font-size:14px;line-height:1.55;color:#2d2d2d;letter-spacing:-0.2px;word-break:keep-all;">' +
+        contentHtml +
+      '</div>' +
+      '<div style="padding:10px 20px;font-size:10px;color:#999;background:#fafafa;border-top:1px solid #eee;text-align:center;">' +
+        '이 회의록은 AI 비서에 의해 자동 생성되었습니다.' +
+      '</div>' +
+    '</div></body></html>';
+}
+
 // ── 메일 발송 ──
 async function sendEmail() {
   var gasUrl = document.getElementById('gasUrl').value.trim();
@@ -661,7 +727,7 @@ async function sendEmail() {
 
     var result = await callGAS(gasUrl, {
       action: 'send_email',
-      html: state.html,
+      html: getEmailHTML({ title: title, date: date }),
       subject: subject,
       recipients: recipients
     });
@@ -671,6 +737,11 @@ async function sendEmail() {
     showStatus('✅ 메일 발송 완료!', 'success');
     showToast('📧 ' + recipients + ' 발송됨');
     setTimeout(hideStatus, 3000);
+
+    // 수동 퇴고 학습: 편집이 있었으면 백그라운드로 diff 분석 → DB 반영
+    if (state.edited) {
+      learnFromEdits(gasUrl);
+    }
 
   } catch (err) {
     showStatus('발송 오류: ' + err.message, 'error');
@@ -698,6 +769,29 @@ async function copyToClipboard() {
     document.execCommand('copy');
     document.body.removeChild(ta);
     showToast('📋 클립보드에 복사됨');
+  }
+}
+
+// ── 수동 퇴고 학습 (백그라운드) ──
+async function learnFromEdits(gasUrl) {
+  try {
+    // 원본: 서버에서 받은 자동 퇴고 결과 (마크다운)
+    var original = state.final;
+    // 수정본: 화면에서 편집된 텍스트 추출
+    var edited = document.getElementById('resultContent').innerText;
+
+    var result = await callGAS(gasUrl, {
+      action: 'learn_edits',
+      original: original,
+      edited: edited
+    });
+
+    if (result.success && result.added > 0) {
+      showToast('🧠 ' + result.added + '개 교정 패턴 자동 학습됨');
+    }
+  } catch (e) {
+    // 학습 실패는 조용히 무시 (메일은 이미 발송됨)
+    Logger.log && console.log('[학습 실패]', e.message);
   }
 }
 
